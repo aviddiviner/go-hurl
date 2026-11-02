@@ -6,16 +6,10 @@ import (
 
 	"github.com/aviddiviner/go-hurl/ast"
 	"github.com/aviddiviner/go-hurl/internal/logger"
+	"github.com/aviddiviner/go-hurl/internal/version"
 )
 
-const (
-	// HurlVersion is the Hurl version targeted by this port.
-	HurlVersion = "8.1.0"
-	// GoHurlVersion is the version of go-hurl.
-	GoHurlVersion = "0.1.0"
-	// DefaultUserAgent is sent when the user doesn't set a User-Agent.
-	DefaultUserAgent = "hurl/" + HurlVersion + " go-hurl/" + GoHurlVersion
-)
+const DefaultUserAgent = version.UserAgent
 
 // VersionInfo describes the HTTP engine, the go-hurl equivalent of
 // libcurl_version_info.
