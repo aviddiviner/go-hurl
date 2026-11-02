@@ -1,0 +1,15 @@
+go-hurl
+Copyright 2026 David Irvine
+
+This product is a Go port of Hurl (https://hurl.dev,
+https://github.com/Orange-OpenSource/hurl), Copyright (C) 2026 Orange,
+licensed under the Apache License, Version 2.0.
+
+The Go source code is a derivative work: it was translated from, and modified
+relative to, the Rust sources of Hurl 8.1.0.
+
+The following files are copied unmodified from Hurl 8.1.0:
+  integration/
+  bin/requirements-frozen.txt
+  bin/test/test_prerequisites.sh
+  bin/test/test_integ.sh

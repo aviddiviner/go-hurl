@@ -1,0 +1,39 @@
+#!/usr/bin/env python3
+# Extract hurl file from html output
+import codecs
+import os
+import sys
+
+from bs4 import BeautifulSoup
+
+
+def test(html_file):
+    print(html_file)
+    actual = extract_hurl_content(html_file)
+
+    hurl_file = os.path.splitext(html_file)[0] + ".hurl"
+    if not os.path.isfile(hurl_file):
+        return
+
+    with codecs.open(hurl_file, encoding="utf-8-sig") as f:
+        expected = f.read()  # Input file can be saved with a BOM
+    if actual.strip() != expected.strip():
+        print(">>> error in html file")
+        print(f"actual: <{actual}>\nexpected: <{expected}>")
+        sys.exit(1)
+
+
+def extract_hurl_content(hurl_file):
+    with open(hurl_file) as f:
+        s = f.read()
+    return BeautifulSoup(s, "html.parser").text
+
+
+def main():
+    print("** test html output")
+    for html_file in sys.argv[1:]:
+        test(html_file)
+
+
+if __name__ == "__main__":
+    main()
