@@ -1,0 +1,75 @@
+body {
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    font-size: 1.125rem;
+    line-height: 1.4;
+}
+
+.line-error {
+    border-bottom: red 2px dashed;
+}
+
+.line-error::before {
+    content: "⛔ "
+}
+
+.line-numbers a.line-error {
+    color: red;
+}
+
+.container {
+    max-width: 1200px;
+    width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.source-container {
+    display: flex;
+    padding: 0;
+    border: solid 1px #dcdcde;
+}
+
+.line-numbers {
+    text-align: right;
+    padding: 8px 10px;
+    border-right: solid 1px #dcdcde;
+    background: #fbfafd;
+}
+
+.line-numbers a {
+    color: #89888d;
+    text-decoration: none;
+}
+
+.line-numbers a:hover {
+    text-decoration: underline;
+}
+
+.source {
+    padding: 8px 10px;
+    overflow: auto;
+    overflow-y: hidden;
+}
+
+
+@media (prefers-color-scheme: dark) {
+    body {
+        background-color: #19191c;
+        color: #c2c2c2;
+    }
+
+    .source-container {
+        border-color: #444;
+        background-color: #27272c;
+    }
+
+    .line-numbers {
+        padding: 8px 10px;
+        border-right-color: #444;
+        background: #19191c;
+    }
+
+    .line-numbers a {
+        color: dimgray;
+    }
+}

@@ -1,0 +1,45 @@
+body {
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    font-size: 1.125rem;
+    line-height: 1.4;
+}
+
+.container {
+    max-width: 1200px;
+    width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.timeline-container {
+    max-width: 1400px;
+    width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+    border: solid 1px #dcdcde;
+    display: flex;
+}
+
+.calls {
+    position: sticky;
+    left: 0;
+    right: 0;
+    width: 260px;
+    flex-shrink: 0;
+}
+
+.waterfall {
+    overflow: auto;
+    overflow-y: hidden;
+}
+
+@media (prefers-color-scheme: dark) {
+    body {
+        background-color: #19191c;
+        color: #c2c2c2;
+    }
+
+    .timeline-container {
+        border-color: #444;
+    }
+}

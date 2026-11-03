@@ -13,3 +13,5 @@ The following files are copied unmodified from Hurl 8.1.0:
   bin/requirements-frozen.txt
   bin/test/test_prerequisites.sh
   bin/test/test_integ.sh
+  internal/format/hurl.css
+  internal/report/html/resources/

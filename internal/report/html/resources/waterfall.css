@@ -1,0 +1,34 @@
+.call-detail {
+    display: none;
+}
+
+.call-summary:hover + .call-detail, .call-detail:hover {
+    display: block;
+}
+
+.call-sel {
+    pointer-events: none;
+}
+
+@media (prefers-color-scheme: dark) {
+    .grid-strip rect {
+        fill: #27272c;
+    }
+
+    .grid-ticks {
+        stroke: #444;
+    }
+
+    .call-back {
+        stroke: #444;
+        fill: #19191c;
+    }
+
+    .call-sel {
+        opacity: 0.1;
+    }
+
+    .call-legend {
+        fill: #c2c2c2;
+    }
+}
