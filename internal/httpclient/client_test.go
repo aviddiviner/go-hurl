@@ -508,7 +508,7 @@ func TestCookies(t *testing.T) {
 
 	cookie, _ := CookieFromNetscape("127.0.0.1\tFALSE\t/\tFALSE\t0\te\t5")
 	c.AddCookie(cookie, l)
-	if l := bodyLines(execute(t, c, newSpec(t, "GET", s.URL+"/"), DefaultClientOptions())); !hasLine(l, "Cookie: a=1; e=5") {
+	if l := bodyLines(execute(t, c, newSpec(t, "GET", s.URL+"/"), DefaultClientOptions())); !hasLine(l, "Cookie: e=5; a=1") {
 		t.Errorf("%q", l)
 	}
 	c.ClearCookieStorage(l)
@@ -538,7 +538,7 @@ func TestCompression(t *testing.T) {
 	}
 
 	call = execute(t, NewClient(), newSpec(t, "GET", s.URL+"/brotli"), o)
-	if _, err := call.Response.Text(); err != (HttpErrorUnsupportedContentEncoding{Detail: "br"}) {
+	if _, err := call.Response.Text(); err != (HttpErrorCouldNotUncompressResponse{Detail: "brotli"}) {
 		t.Error(err)
 	}
 }
@@ -573,6 +573,11 @@ func TestConnectionErrors(t *testing.T) {
 	o.IpResolve = IpResolveIpV6
 	_, err = NewClient().Execute(newSpec(t, "GET", "http://unknown.invalid/"), o, newBufferedLogger(0))
 	if e, ok := err.(HttpErrorLibcurl); !ok || e.Code != 6 || e.Detail != "Could not resolve host: unknown.invalid" {
+		t.Errorf("got %v", err)
+	}
+
+	_, err = NewClient().Execute(newSpec(t, "GET", "http://"+addr+"/x'; touch foo; : '"), DefaultClientOptions(), newBufferedLogger(0))
+	if e, ok := err.(HttpErrorLibcurl); !ok || e.Code != 3 {
 		t.Errorf("got %v", err)
 	}
 }
@@ -768,7 +773,7 @@ func TestTLS(t *testing.T) {
 	if cert == nil || *cert.Subject() != "O = Acme Co" || cert.ExpireDate() == nil || cert.SerialNumber() == nil || cert.Value() == nil {
 		t.Fatalf("certificate: %+v", cert)
 	}
-	if !strings.HasPrefix(*cert.Value(), "-----BEGIN CERTIFICATE-----\n") || !strings.Contains(*cert.SubjectAltName(), "IP address:127.0.0.1") {
+	if !strings.HasPrefix(*cert.Value(), "-----BEGIN CERTIFICATE-----\n") || !strings.HasSuffix(*cert.Value(), "-----END CERTIFICATE-----") || !strings.Contains(*cert.SubjectAltName(), "IP Address:127.0.0.1") {
 		t.Error(*cert.Value(), *cert.SubjectAltName())
 	}
 	if call.Timings.AppConnect < call.Timings.Connect {
@@ -889,5 +894,12 @@ func TestAllowReuse(t *testing.T) {
 	}
 	if !strings.Contains(l.Stderr.Buffer(), "* Force refreshing connections because requested HTTP version change\n") {
 		t.Error(l.Stderr.Buffer())
+	}
+}
+
+func TestStatusLineLatin1(t *testing.T) {
+	resp := &http.Response{Proto: "HTTP/1.1", ProtoMajor: 1, ProtoMinor: 1, Status: "200 Succ\xe8s"}
+	if got := statusLine(resp); got != "HTTP/1.1 200 Succès" {
+		t.Errorf("got %q", got)
 	}
 }

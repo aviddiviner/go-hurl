@@ -79,6 +79,7 @@ func newTransport(o ClientOptions, allowReuse bool) (*http.Transport, HttpError)
 		connectTimeout: o.ConnectTimeout,
 		ipResolve:      o.IpResolve,
 		unixSocket:     o.UnixSocket,
+		lenient:        o.HttpVersion != RequestedHttpVersionHttp2PriorKnowledge,
 	}
 	for _, s := range o.ConnectsTo {
 		if c, ok := parseConnectTo(s); ok {
@@ -92,7 +93,7 @@ func newTransport(o ClientOptions, allowReuse bool) (*http.Transport, HttpError)
 	}
 	t := &http.Transport{
 		Proxy:                 proxyFunc(o),
-		DialContext:           d.dialContext,
+		DialContext:           d.dialPlain,
 		TLSClientConfig:       tlsConfig,
 		TLSHandshakeTimeout:   o.ConnectTimeout,
 		DisableCompression:    true,
@@ -100,6 +101,14 @@ func newTransport(o ClientOptions, allowReuse bool) (*http.Transport, HttpError)
 		ExpectContinueTimeout: time.Second,
 		MaxIdleConnsPerHost:   8,
 		IdleConnTimeout:       118 * time.Second,
+	}
+	t.DialTLSContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+		conn, err := d.dialContext(ctx, network, addr)
+		if err != nil {
+			return nil, err
+		}
+		host, _, _ := net.SplitHostPort(addr)
+		return tls.Client(conn, connTLSConfig(t.TLSClientConfig, host, conn, o.ConnectTimeout)), nil
 	}
 	t.OnProxyConnectResponse = func(ctx context.Context, _ *url.URL, _ *http.Request, res *http.Response) error {
 		if tr := traceFromContext(ctx); tr != nil {
@@ -128,6 +137,59 @@ func newTransport(o ClientOptions, allowReuse bool) (*http.Transport, HttpError)
 	}
 	t.Protocols = &protocols
 	return t, nil
+}
+
+// connTLSConfig returns the TLS config of a direct connection to host. The
+// certificate is verified like OpenSSL does, which falls back to the subject
+// CN when the certificate has no DNS subject alternative name. The
+// handshake is bounded by the connect timeout, like libcurl.
+func connTLSConfig(base *tls.Config, host string, conn net.Conn, connectTimeout time.Duration) *tls.Config {
+	cfg := base.Clone()
+	if cfg.ServerName == "" {
+		cfg.ServerName = host
+	}
+	verify := !cfg.InsecureSkipVerify
+	cfg.InsecureSkipVerify = true
+	if connectTimeout > 0 {
+		conn.SetDeadline(time.Now().Add(connectTimeout))
+	}
+	next := base.VerifyConnection
+	cfg.VerifyConnection = func(cs tls.ConnectionState) error {
+		conn.SetDeadline(time.Time{})
+		if verify {
+			if err := verifyPeer(cs.PeerCertificates, cfg.RootCAs, cfg.ServerName); err != nil {
+				return &tls.CertificateVerificationError{UnverifiedCertificates: cs.PeerCertificates, Err: err}
+			}
+		}
+		if next != nil {
+			return next(cs)
+		}
+		return nil
+	}
+	return cfg
+}
+
+func verifyPeer(certs []*x509.Certificate, roots *x509.CertPool, host string) error {
+	if len(certs) == 0 {
+		return errors.New("tls: server sent no certificates")
+	}
+	opts := x509.VerifyOptions{Roots: roots, Intermediates: x509.NewCertPool()}
+	for _, c := range certs[1:] {
+		opts.Intermediates.AddCert(c)
+	}
+	leaf := certs[0]
+	if _, err := leaf.Verify(opts); err != nil {
+		return err
+	}
+	err := leaf.VerifyHostname(host)
+	if err != nil && len(leaf.DNSNames) == 0 && leaf.Subject.CommonName != "" && net.ParseIP(host) == nil {
+		cn := *leaf
+		cn.DNSNames = []string{leaf.Subject.CommonName}
+		if cn.VerifyHostname(host) == nil {
+			return nil
+		}
+	}
+	return err
 }
 
 func tlsVersion(v TlsVersion) uint16 {
@@ -433,6 +495,7 @@ type dialer struct {
 	connectTimeout time.Duration
 	ipResolve      IpResolve
 	unixSocket     string
+	lenient        bool
 	connectsTo     []connectTo
 	resolves       []resolveEntry
 }
@@ -450,6 +513,21 @@ type dialError struct {
 
 func (e *dialError) Error() string { return e.err.Error() }
 func (e *dialError) Unwrap() error { return e.err }
+
+// dialPlain dials a connection for plain-text HTTP (or to a proxy).
+func (d *dialer) dialPlain(ctx context.Context, network, addr string) (net.Conn, error) {
+	conn, err := d.dialContext(ctx, network, addr)
+	if err != nil {
+		return nil, err
+	}
+	if !d.lenient {
+		return conn, nil
+	}
+	if tr := traceFromContext(ctx); tr != nil && tr.proxyAddr != "" && addr == tr.proxyAddr {
+		return conn, nil
+	}
+	return &lenientConn{Conn: conn}, nil
+}
 
 func (d *dialer) dialContext(ctx context.Context, network, addr string) (net.Conn, error) {
 	start := time.Now()

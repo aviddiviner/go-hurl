@@ -350,8 +350,8 @@ func pathMatch(cookiePath, uriPath string) bool {
 }
 
 // cookiesFor returns the cookies to send to host for reqPath, sorted like
-// libcurl: longest path first, then longest domain, then name, then
-// creation order.
+// libcurl's cookie_sort: longest path first, then longest domain, then
+// longest name, then most recently created.
 func (j *cookieJar) cookiesFor(host, reqPath string, secure bool) []*jarCookie {
 	j.mu.Lock()
 	defer j.mu.Unlock()
@@ -373,17 +373,17 @@ func (j *cookieJar) cookiesFor(host, reqPath string, secure bool) []*jarCookie {
 		}
 		matches = append(matches, c)
 	}
-	slices.SortStableFunc(matches, func(a, b *jarCookie) int {
-		if d := len(b.spath) - len(a.spath); d != 0 {
+	slices.SortFunc(matches, func(a, b *jarCookie) int {
+		if d := len(b.path) - len(a.path); d != 0 {
 			return d
 		}
 		if d := len(b.domain) - len(a.domain); d != 0 {
 			return d
 		}
-		if d := strings.Compare(a.name, b.name); d != 0 {
+		if d := len(b.name) - len(a.name); d != 0 {
 			return d
 		}
-		return a.creation - b.creation
+		return b.creation - a.creation
 	})
 	return matches
 }

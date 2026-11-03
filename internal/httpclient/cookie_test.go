@@ -6,6 +6,9 @@ import (
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/aviddiviner/go-hurl/internal/logger"
+	"github.com/aviddiviner/go-hurl/internal/term"
 )
 
 func TestParseCookieFromStr(t *testing.T) {
@@ -180,7 +183,7 @@ func TestCookieJarExpiry(t *testing.T) {
 	if cookies["a"] != now.Unix()+100 || cookies["b"] != 3409338181 || cookies["d"] != 0 {
 		t.Errorf("got %v", cookies)
 	}
-	if got := jarValues(j.cookiesFor("localhost", "/", false)); !reflect.DeepEqual(got, []string{"a=1", "b=2", "d=4"}) {
+	if got := jarValues(j.cookiesFor("localhost", "/", false)); !reflect.DeepEqual(got, []string{"d=4", "b=2", "a=1"}) {
 		t.Error(got)
 	}
 
@@ -190,7 +193,7 @@ func TestCookieJarExpiry(t *testing.T) {
 	if got := j.list(); got[len(got)-1] != "localhost\tFALSE\t/\tFALSE\t1\td\t4" {
 		t.Errorf("got %q", got)
 	}
-	if got := jarValues(j.cookiesFor("localhost", "/", false)); !reflect.DeepEqual(got, []string{"a=1", "b=2"}) {
+	if got := jarValues(j.cookiesFor("localhost", "/", false)); !reflect.DeepEqual(got, []string{"b=2", "a=1"}) {
 		t.Error(got)
 	}
 }
@@ -209,12 +212,12 @@ func TestCookieJarReplace(t *testing.T) {
 	file := filepath.Join(dir, "cookies.txt")
 	os.WriteFile(file, []byte("# comment\nlocalhost\tFALSE\t/\tFALSE\t0\ta\tfile\nlocalhost\tFALSE\t/\tFALSE\t0\tc\tfile\n"), 0o644)
 	j.loadFile(file)
-	if got := jarValues(j.cookiesFor("localhost", "/", false)); !reflect.DeepEqual(got, []string{"a=2", "b=1", "c=file"}) {
+	if got := jarValues(j.cookiesFor("localhost", "/", false)); !reflect.DeepEqual(got, []string{"c=file", "b=1", "a=2"}) {
 		t.Error(got)
 	}
 
 	j.addNetscape("localhost\tFALSE\t/\tFALSE\t0\tc\tset")
-	if got := jarValues(j.cookiesFor("localhost", "/", false)); !reflect.DeepEqual(got, []string{"a=2", "b=1", "c=set"}) {
+	if got := jarValues(j.cookiesFor("localhost", "/", false)); !reflect.DeepEqual(got, []string{"c=set", "b=1", "a=2"}) {
 		t.Error(got)
 	}
 	j.clear()
@@ -256,5 +259,18 @@ func TestPathMatch(t *testing.T) {
 		if got := pathMatch(tt.cookie, tt.uri); got != tt.want {
 			t.Errorf("pathMatch(%q, %q) = %v", tt.cookie, tt.uri, got)
 		}
+	}
+}
+
+func TestCookieStoreNonUtf8(t *testing.T) {
+	c := NewClient()
+	c.jar.setCookie("bad=\xff; Path=/", "localhost", "/", false)
+	stderr := term.NewStderr(term.WriteModeBuffered)
+	store := c.CookieStore(logger.New(logger.LoggerOptions{}, stderr, nil))
+	if store.Len() != 1 || store.cookies[0].value != "\uFFFD" {
+		t.Errorf("got %+v", store)
+	}
+	if want := "warning: Cookie <localhost\tFALSE\t/\tFALSE\t0\tbad\t\uFFFD> can not be parsed as UTF-8\n"; stderr.Buffer() != want {
+		t.Errorf("got %q", stderr.Buffer())
 	}
 }

@@ -58,7 +58,7 @@ func newCertInfo(cert *x509.Certificate) certInfo {
 	if san := subjectAltName(cert); san != "" {
 		data = append(data, "X509v3 Subject Alternative Name:"+san)
 	}
-	value := string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: cert.Raw}))
+	value := strings.TrimSpace(string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: cert.Raw})))
 	data = append(data, "Cert:"+value)
 	return certInfo{data: data, value: &value}
 }
@@ -108,7 +108,7 @@ func subjectAltName(cert *x509.Certificate) string {
 		parts = append(parts, "DNS:"+d)
 	}
 	for _, ip := range cert.IPAddresses {
-		parts = append(parts, "IP address:"+opensslIP(ip))
+		parts = append(parts, "IP Address:"+opensslIP(ip))
 	}
 	for _, e := range cert.EmailAddresses {
 		parts = append(parts, "email:"+e)

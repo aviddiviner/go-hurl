@@ -182,8 +182,10 @@ func (c *Client) Execute(spec RequestSpec, o ClientOptions, l *logger.Logger) (*
 	veryVerbose := o.Verbosity == logger.VerbosityVeryVerbose
 
 	rawUrl := generateUrl(spec.Url, spec.Querystring)
+	// libcurl rejects spaces and control characters, net/url doesn't.
+	malformed := strings.ContainsFunc(rawUrl, func(r rune) bool { return r <= ' ' || r == 0x7f })
 	reqUrl, err := url.Parse(rawUrl)
-	if err != nil {
+	if err != nil || malformed {
 		return nil, HttpErrorLibcurl{Code: 3, Detail: "URL rejected: Malformed input to a URL function"}
 	}
 	normalizeRequestUrl(reqUrl, o.PathAsIs)
@@ -256,7 +258,7 @@ func (c *Client) Execute(spec RequestSpec, o ClientOptions, l *logger.Logger) (*
 	if o.UseCookieStore {
 		secure := isSecureContext(reqUrl.Scheme, reqUrl.Hostname())
 		for _, v := range resp.Header.Values("Set-Cookie") {
-			c.jar.setCookie(decodeHeaderValue(v), strings.ToLower(reqUrl.Hostname()), reqUrl.EscapedPath(), secure)
+			c.jar.setCookie(v, strings.ToLower(reqUrl.Hostname()), reqUrl.EscapedPath(), secure)
 		}
 	}
 
@@ -447,6 +449,16 @@ func (c *Client) newRequest(spec RequestSpec, o ClientOptions, reqUrl *url.URL) 
 		}
 		req.Body, _ = getBody()
 		req.GetBody = getBody
+	} else if method == "POST" || method == "PUT" || method == "PATCH" {
+		// net/http sends "Content-Length: 0" for these methods without a
+		// body, libcurl doesn't. An empty body of unknown length with the
+		// identity encoding is sent with neither Content-Length nor chunking.
+		getBody := func() (io.ReadCloser, error) { return io.NopCloser(bytes.NewReader(nil)), nil }
+		req.Body, _ = getBody()
+		req.GetBody = getBody
+		if req.TransferEncoding == nil {
+			req.TransferEncoding = []string{"identity"}
+		}
 	}
 	return req, body, nil
 }
@@ -544,7 +556,7 @@ func statusLine(resp *http.Response) string {
 	if resp.ProtoMajor == 2 {
 		return "HTTP/2 " + strconv.Itoa(resp.StatusCode)
 	}
-	return strings.TrimSpace(resp.Proto + " " + resp.Status)
+	return decodeHeaderValue(strings.TrimSpace(resp.Proto + " " + resp.Status))
 }
 
 // parseResponseVersion parses the HTTP version of a status line.
@@ -573,6 +585,10 @@ func responseHeaderVec(resp *http.Response) HeaderVec {
 	if len(resp.TransferEncoding) > 0 && h.Get("Transfer-Encoding") == "" {
 		h["Transfer-Encoding"] = []string{strings.Join(resp.TransferEncoding, ", ")}
 	}
+	// net/http removes "Connection: close" from HTTP/1.1 responses.
+	if resp.Close && resp.ProtoMajor == 1 && resp.ProtoMinor == 1 && h.Get("Connection") == "" {
+		h["Connection"] = []string{"close"}
+	}
 	var v HeaderVec
 	for _, name := range slices.Sorted(func(yield func(string) bool) {
 		for k := range h {
@@ -581,7 +597,7 @@ func responseHeaderVec(resp *http.Response) HeaderVec {
 			}
 		}
 	}) {
-		display := decodeHeaderValue(name)
+		display := decodeHeaderValue(unescapeHeaderName(name))
 		if resp.ProtoMajor == 2 {
 			display = strings.ToLower(display)
 		}

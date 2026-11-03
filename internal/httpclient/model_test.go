@@ -233,6 +233,11 @@ func TestUrlJoin(t *testing.T) {
 			t.Errorf("Join(%q) = %v, want %v", tt.input, got, want)
 		}
 	}
+
+	_, err := base.Join("market://details?id=com.example.package")
+	if err == nil || *err != (UrlError{"market://details?id=com.example.package", "Only <http://> and <https://> schemes are supported"}) {
+		t.Errorf("got %v", err)
+	}
 }
 
 func TestUrlParsingError(t *testing.T) {

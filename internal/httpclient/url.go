@@ -142,7 +142,11 @@ func (u Url) Join(input string) (Url, *UrlError) {
 	if err != nil {
 		return Url{}, newUrlError(u.String(), "Can not use relative path '"+input+"'")
 	}
-	return ParseUrl(serialize(u.inner.ResolveReference(ref)))
+	resolved := u.inner.ResolveReference(ref)
+	if ref.IsAbs() && ref.Path == "" && ref.RawPath == "" {
+		resolved.Path = ""
+	}
+	return ParseUrl(serialize(resolved))
 }
 
 // String returns the normalized serialization of this URL.
@@ -170,8 +174,18 @@ func serialize(in *url.URL) string {
 		host += ":" + port
 	}
 	v.Host = host
-	if v.Path == "" && v.RawPath == "" {
+	if v.Path == "" && v.RawPath == "" && isSpecialScheme(v.Scheme) {
 		v.Path = "/"
 	}
 	return v.String()
+}
+
+// isSpecialScheme reports whether scheme is a WHATWG special scheme, whose
+// URLs always have a path.
+func isSpecialScheme(scheme string) bool {
+	switch scheme {
+	case "http", "https", "ws", "wss", "ftp", "file":
+		return true
+	}
+	return false
 }

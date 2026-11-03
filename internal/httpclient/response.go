@@ -195,7 +195,7 @@ func (e ContentEncoding) Decode(data []byte) ([]byte, HttpError) {
 		return uncompressZlib(data)
 	case ContentEncodingBrotli:
 		// Brotli is dropped: no decoder in the standard library or x/.
-		return nil, HttpErrorUnsupportedContentEncoding{Detail: "br"}
+		return nil, HttpErrorCouldNotUncompressResponse{Detail: "brotli"}
 	}
 	return data, nil
 }

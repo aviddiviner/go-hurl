@@ -178,10 +178,10 @@ func TestUncompressBody(t *testing.T) {
 		r.Headers = NewHeaderVec(NewHeader("Content-Encoding", enc))
 		r.Body = brotliHelloWorld
 		_, err := r.UncompressBody()
-		if err != (HttpErrorUnsupportedContentEncoding{Detail: "br"}) {
+		if err != (HttpErrorCouldNotUncompressResponse{Detail: "brotli"}) {
 			t.Errorf("%s: got %v", enc, err)
 		}
-		if err != nil && err.Message() != "compression br is not supported" {
+		if err != nil && err.Message() != "could not uncompress response with brotli" {
 			t.Error(err.Message())
 		}
 	}
