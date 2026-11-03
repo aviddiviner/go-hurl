@@ -23,6 +23,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -934,18 +935,29 @@ func TestClientCertificate(t *testing.T) {
 }
 
 func TestAllowReuse(t *testing.T) {
-	s := newServer(t)
+	var conns atomic.Int32
+	s := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	s.Config.ConnState = func(_ net.Conn, state http.ConnState) {
+		if state == http.StateNew {
+			conns.Add(1)
+		}
+	}
+	s.Start()
+	defer s.Close()
 	c := NewClient()
 	o := DefaultClientOptions()
 	execute(t, c, newSpec(t, "GET", s.URL), o)
+	execute(t, c, newSpec(t, "GET", s.URL), o)
+	if n := conns.Load(); n != 1 {
+		t.Fatalf("%d connections with reuse, want 1", n)
+	}
 	o.AllowReuse = false
 	l := newBufferedLogger(logger.VerbosityVerbose)
-	call, err := c.Execute(newSpec(t, "GET", s.URL), o, l)
-	if err != nil {
+	if _, err := c.Execute(newSpec(t, "GET", s.URL), o, l); err != nil {
 		t.Fatal(err)
 	}
-	if call.Timings.Connect == 0 {
-		t.Error("expected a new connection")
+	if n := conns.Load(); n != 2 {
+		t.Errorf("%d connections, want a new one without reuse", n)
 	}
 	if !strings.Contains(l.Stderr.Buffer(), "* Force refreshing connections because requested HTTP version change\n") {
 		t.Error(l.Stderr.Buffer())
