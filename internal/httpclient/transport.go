@@ -91,8 +91,15 @@ func newTransport(o ClientOptions, allowReuse bool) (*http.Transport, HttpError)
 			d.resolves = append(d.resolves, r)
 		}
 	}
+	selectProxy := proxyFunc(o)
 	t := &http.Transport{
-		Proxy:                 proxyFunc(o),
+		Proxy: func(r *http.Request) (*url.URL, error) {
+			u, err := selectProxy(r)
+			if r.URL.Scheme == "https" && tunnelsHTTPS(u) {
+				return nil, nil
+			}
+			return u, err
+		},
 		DialContext:           d.dialPlain,
 		TLSClientConfig:       tlsConfig,
 		TLSHandshakeTimeout:   o.ConnectTimeout,
@@ -103,7 +110,13 @@ func newTransport(o ClientOptions, allowReuse bool) (*http.Transport, HttpError)
 		IdleConnTimeout:       118 * time.Second,
 	}
 	t.DialTLSContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
-		conn, err := d.dialContext(ctx, network, addr)
+		var conn net.Conn
+		var err error
+		if tr := traceFromContext(ctx); tr != nil && tr.tunnelProxy != nil {
+			conn, err = d.dialTunnel(ctx, tr, tr.tunnelProxy, o.ProxyHeaders.All(), addr)
+		} else {
+			conn, err = d.dialContext(ctx, network, addr)
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -243,7 +256,12 @@ func newTLSConfig(o ClientOptions) (*tls.Config, HttpError) {
 // loadClientCert loads a PEM client certificate and an unencrypted PEM key
 // (from keyFile, or the certificate file itself).
 func loadClientCert(certFile, keyFile string) (tls.Certificate, HttpError) {
-	certPath, _, hasPassword := parseCertPassword(certFile)
+	// An existing file is taken as is (like the CLI does), so Windows paths
+	// like C:\cert.pem aren't split on their drive colon.
+	certPath, hasPassword := certFile, false
+	if !isRegularFile(certFile) {
+		certPath, _, hasPassword = parseCertPassword(certFile)
+	}
 	if hasPassword {
 		return tls.Certificate{}, HttpErrorUnsupportedFeature{Feature: "Client certificate password (--cert <file>:<password>)"}
 	}
@@ -279,6 +297,11 @@ func isEncryptedKey(data []byte) bool {
 			return true
 		}
 	}
+}
+
+func isRegularFile(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && info.Mode().IsRegular()
 }
 
 // parseCertPassword splits a --cert value into the certificate file name
@@ -358,12 +381,20 @@ func pinnedPubKeyVerifier(value string) (func(tls.ConnectionState) error, HttpEr
 }
 
 // proxyFunc returns the proxy selection function: the --proxy option, or
-// the environment (http_proxy, https_proxy, no_proxy...), filtered by
-// --noproxy.
+// the environment (http_proxy, https_proxy...). Like libcurl, hosts matching
+// --noproxy, or the no_proxy environment variable when --noproxy isn't set,
+// are never proxied, even with an explicit --proxy.
 func proxyFunc(o ClientOptions) func(*http.Request) (*url.URL, error) {
 	noProxy := func(*url.URL) bool { return false }
+	list, ok := "", false
 	if o.NoProxy != nil {
-		list := *o.NoProxy
+		list, ok = *o.NoProxy, true
+	} else if v := os.Getenv("no_proxy"); v != "" {
+		list, ok = v, true
+	} else if v := os.Getenv("NO_PROXY"); v != "" {
+		list, ok = v, true
+	}
+	if ok {
 		noProxy = func(u *url.URL) bool { return matchNoProxy(list, u.Hostname()) }
 	}
 	if o.Proxy != "" {

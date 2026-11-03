@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"net/http/httptrace"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -21,6 +22,9 @@ type transferTrace struct {
 	start time.Time
 	// proxyAddr is the address of the proxy used for this request, if any.
 	proxyAddr string
+	// tunnelProxy is set when we open the CONNECT tunnel ourselves (HTTPS
+	// through an HTTP proxy), so it can be logged like libcurl does.
+	tunnelProxy *url.URL
 
 	nameLookup    time.Duration
 	connect       time.Duration
@@ -46,11 +50,16 @@ const (
 	eventHeaders
 	// eventRequestSent marks the point where the request was fully written.
 	eventRequestSent
+	// eventConnectOut and eventConnectIn are a proxy CONNECT request and its
+	// response: text is the request/status line, headers the headers.
+	eventConnectOut
+	eventConnectIn
 )
 
 type traceEvent struct {
-	kind traceEventKind
-	text string
+	kind    traceEventKind
+	text    string
+	headers []Header
 }
 
 type traceKey struct{}
@@ -69,6 +78,12 @@ func (t *transferTrace) chatter(s string) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	t.events = append(t.events, traceEvent{kind: eventChatter, text: s})
+}
+
+func (t *transferTrace) event(e traceEvent) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.events = append(t.events, e)
 }
 
 func (t *transferTrace) resolved(start time.Time, host, port string, ips []net.IP) {

@@ -705,6 +705,61 @@ func TestProxy(t *testing.T) {
 	}
 }
 
+func TestProxyTunnel(t *testing.T) {
+	target := newTLSServer(t, false, nil)
+	var connectLine, connectHeader, connectServerHeader string
+	proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		connectLine = r.Method + " " + r.Host
+		connectHeader, connectServerHeader = r.Header.Get("X-To-Proxy"), r.Header.Get("X-To-Server")
+		upstream, err := net.Dial("tcp", r.Host)
+		if err != nil {
+			w.WriteHeader(http.StatusBadGateway)
+			return
+		}
+		conn, buf, _ := w.(http.Hijacker).Hijack()
+		buf.WriteString("HTTP/1.1 200 Connection established\r\n\r\n")
+		buf.Flush()
+		go io.Copy(upstream, conn)
+		io.Copy(conn, upstream)
+		conn.Close()
+	}))
+	defer proxy.Close()
+
+	o := DefaultClientOptions()
+	o.Proxy = proxy.URL
+	o.CacertFile = writeServerCert(t, target)
+	o.ProxyHeaders = NewHeaderVec(NewHeader("X-To-Proxy", "to-proxy"))
+	o.Verbosity = logger.VerbosityVerbose
+	spec := newSpec(t, "GET", target.URL+"/hello")
+	spec.Headers = NewHeaderVec(NewHeader("X-To-Server", "to-server"))
+	l := newBufferedLogger(logger.VerbosityVerbose)
+	call, err := NewClient().Execute(spec, o, l)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(call.Response.Body) != "HTTP/1.1 0" {
+		t.Errorf("body %q", call.Response.Body)
+	}
+	host := strings.TrimPrefix(target.URL, "https://")
+	if connectLine != "CONNECT "+host || connectHeader != "to-proxy" || connectServerHeader != "" {
+		t.Errorf("proxy got %q, X-To-Proxy %q, X-To-Server %q", connectLine, connectHeader, connectServerHeader)
+	}
+	log := l.Stderr.Buffer()
+	want := "> CONNECT " + host + " HTTP/1.1\n> Host: " + host + "\n> Proxy-Connection: Keep-Alive\n> X-To-Proxy: to-proxy\n>\n< HTTP/1.1 200 Connection established\n<\n> GET /hello HTTP/1.1\n"
+	if !strings.Contains(log, want) {
+		t.Errorf("log:\n%s\nwant:\n%s", log, want)
+	}
+
+	t.Setenv("no_proxy", "127.0.0.1")
+	connectLine = ""
+	if _, err := NewClient().Execute(spec, o, newBufferedLogger(0)); err != nil {
+		t.Fatal(err)
+	}
+	if connectLine != "" {
+		t.Errorf("no_proxy ignored with explicit --proxy: proxy got %q", connectLine)
+	}
+}
+
 func TestUnsupportedFeatures(t *testing.T) {
 	tests := []struct {
 		set  func(*ClientOptions)

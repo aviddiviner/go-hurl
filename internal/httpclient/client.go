@@ -200,9 +200,12 @@ func (c *Client) Execute(spec RequestSpec, o ClientOptions, l *logger.Logger) (*
 	tr := &transferTrace{start: start}
 	var proxyUrl *url.URL
 	if transport.Proxy != nil {
-		proxyUrl, _ = transport.Proxy(req)
+		proxyUrl, _ = proxyFunc(o)(req)
 		if proxyUrl != nil {
 			tr.proxyAddr = canonicalAddr(proxyUrl)
+			if reqUrl.Scheme == "https" && tunnelsHTTPS(proxyUrl) {
+				tr.tunnelProxy = proxyUrl
+			}
 			if reqUrl.Scheme == "http" {
 				for _, h := range o.ProxyHeaders.All() {
 					req.Header[h.Name] = append(req.Header[h.Name], h.Value)
@@ -493,6 +496,18 @@ func (c *Client) replayRequestLog(tr *transferTrace, req *http.Request, proxyUrl
 			if veryVerbose {
 				l.DebugCurl(e.text)
 			}
+		case eventConnectOut:
+			l.DebugMethodVersionOut(e.text)
+			for _, h := range e.headers {
+				l.DebugHeaderOut(h.Name, h.Value)
+			}
+			l.DebugHeaderOutEnd()
+		case eventConnectIn:
+			l.DebugStatusVersionIn(e.text)
+			for _, h := range e.headers {
+				l.DebugHeaderIn(h.Name, h.Value)
+			}
+			l.DebugHeaderInEnd()
 		case eventHeaders:
 			target := req.URL.RequestURI()
 			if proxyUrl != nil && req.URL.Scheme == "http" {

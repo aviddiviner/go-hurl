@@ -3,7 +3,7 @@
 install() patches the upstream test_script module in place: expected files read
 through its `open` and actual output from its terminals both go through
 normalize(), which sorts runs of verbose header lines and JSON `headers` arrays
-(one-line, or pretty-printed by jq) by header name.
+(one-line, or pretty-printed by jq, also as a bare top-level array) by header name.
 """
 
 import builtins
@@ -17,7 +17,8 @@ VERBOSE_HEADER = re.compile(r"^([<>]) (?:\x1b\[[0-9;]*m)?([A-Za-z0-9!#$%&'*+.^_`
 JSON_HEADERS = re.compile(r'"headers":\[((?:\{"name":"(?:[^"\\]|\\.)*","value":"(?:[^"\\]|\\.)*"\},?)*)\]')
 JSON_HEADER = re.compile(r'\{"name":"((?:[^"\\]|\\.)*)","value":"(?:[^"\\]|\\.)*"\}')
 PRETTY_HEADERS = re.compile(
-    r'("headers": \[\n)((?: *\{\n *"name": "(?:[^"\\]|\\.)*",\n *"value": "(?:[^"\\]|\\.)*"\n *\},?\n)+)( *\])'
+    r'("headers": \[\n|^\[\n)((?: *\{\n *"name": "(?:[^"\\]|\\.)*",\n *"value": "(?:[^"\\]|\\.)*"\n *\},?\n)+)( *\])',
+    re.M,
 )
 PRETTY_HEADER = re.compile(r' *\{\n *"name": "((?:[^"\\]|\\.)*)",\n *"value": "(?:[^"\\]|\\.)*"\n *\}')
 
