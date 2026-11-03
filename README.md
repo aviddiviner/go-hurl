@@ -6,12 +6,23 @@ go-hurl targets **Hurl 8.1.0**. It is an independent port and is not affiliated 
 
 ## Install
 
+Prebuilt binaries are on the [releases page](https://github.com/aviddiviner/go-hurl/releases), packaged like upstream Hurl's: `hurl-<version>-<target>.tar.gz` (with `hurl-<version>-<target>/bin/hurl` and `hurlfmt` inside) plus a `.sha256` for each, for `x86_64`/`aarch64` `unknown-linux-gnu` and `apple-darwin`, and `x86_64-pc-windows-msvc` (zip). Release tags have a `v` prefix (`v0.1.0`), while archive names don't:
+
+```sh
+VERSION=0.1.0 target=x86_64-unknown-linux-gnu
+curl -sSfLO "https://github.com/aviddiviner/go-hurl/releases/download/v$VERSION/hurl-$VERSION-$target.tar.gz"
+```
+
+Or with Go:
+
 ```sh
 go install github.com/aviddiviner/go-hurl/cmd/hurl@latest
 go install github.com/aviddiviner/go-hurl/cmd/hurlfmt@latest
 ```
 
 Or build from a checkout: `CGO_ENABLED=0 go build -o build/ ./cmd/...`.
+
+To cut a release, bump `GoHurl` in `internal/version/version.go`, commit, then push a `v<version>` tag. The release workflow checks the tag matches, runs the tests, builds the archives with `scripts/package.sh` and publishes them.
 
 ## Usage
 
