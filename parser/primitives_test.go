@@ -196,12 +196,9 @@ func TestRegexError(t *testing.T) {
 	_, err = regex(r)
 	assertError(t, err, pos(1, 5), false, ParseErrorRegexExpr{Message: "unexpected end of file"})
 
-	// Hurl's test uses /x{a}/ ("repetition quantifier expects a valid
-	// decimal"), which Go's regexp accepts as a literal. The message comes
-	// from Go's regexp.
-	r = reader.New("/x{2,1}/")
+	r = reader.New("/x{a}/")
 	_, err = regex(r)
-	assertError(t, err, pos(1, 2), false, ParseErrorRegexExpr{Message: "invalid repeat count: `{2,1}`"})
+	assertError(t, err, pos(1, 2), false, ParseErrorRegexExpr{Message: "repetition quantifier expects a valid decimal"})
 }
 
 func TestFile(t *testing.T) {

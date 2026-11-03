@@ -1,11 +1,11 @@
 package parser
 
 import (
-	"regexp"
 	"strings"
 	"unicode"
 
 	"github.com/aviddiviner/go-hurl/ast"
+	hurlregex "github.com/aviddiviner/go-hurl/internal/regex"
 	"github.com/aviddiviner/go-hurl/reader"
 )
 
@@ -252,7 +252,7 @@ func regex(r *reader.Reader) (ast.Regex, *ParseError) {
 		}
 		unescaped.WriteRune(c)
 	}
-	inner, err := regexp.Compile(unescaped.String())
+	inner, err := hurlregex.Compile(unescaped.String())
 	if err != nil {
 		message := strings.TrimPrefix(err.Error(), "error parsing regexp: ")
 		return ast.Regex{}, newError(start.Pos, false, ParseErrorRegexExpr{Message: message})
