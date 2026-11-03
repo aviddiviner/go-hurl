@@ -41,21 +41,29 @@ func (c ContextDir) IsAccessAllowed(filename string) bool {
 }
 
 // joinPath joins like Rust's Path::join: an absolute p replaces base, and no
-// lexical cleaning is done.
+// lexical cleaning is done. Like Rust on Windows, a rooted p without a volume
+// (\dir) replaces base but keeps its volume.
 func joinPath(base, p string) string {
-	if filepath.IsAbs(p) || base == "" {
+	if filepath.IsAbs(p) || base == "" || filepath.VolumeName(p) != "" {
 		return p
 	}
+	if p != "" && os.IsPathSeparator(p[0]) {
+		return filepath.VolumeName(base) + p
+	}
 	if p == "" {
-		if strings.HasSuffix(base, string(filepath.Separator)) {
+		if hasTrailingSeparator(base) {
 			return base
 		}
 		return base + string(filepath.Separator)
 	}
-	if strings.HasSuffix(base, string(filepath.Separator)) {
+	if hasTrailingSeparator(base) {
 		return base + p
 	}
 	return base + string(filepath.Separator) + p
+}
+
+func hasTrailingSeparator(s string) bool {
+	return s != "" && os.IsPathSeparator(s[len(s)-1])
 }
 
 // isDescendant reports whether path is a descendant of ancestor. Both paths
@@ -73,48 +81,44 @@ func isDescendant(path, ancestor string) bool {
 	}
 }
 
-// pathBuf is a path as a list of components, like Rust's PathBuf. The first
-// component may be "/" (root) or "." (a leading current dir).
-type pathBuf struct{ comps []string }
+// pathBuf is a path as a root and a list of components, like Rust's
+// PathBuf. root is empty for a relative path, else the volume and/or the
+// separator ("/", `C:\`, `\`). The first component may be "." (a leading
+// current dir).
+type pathBuf struct {
+	root  string
+	comps []string
+}
 
-func components(path string) []string {
-	var comps []string
-	if strings.HasPrefix(path, "/") {
-		comps = append(comps, "/")
+func parsePath(path string) pathBuf {
+	var p pathBuf
+	vol := filepath.VolumeName(path)
+	rest := path[len(vol):]
+	p.root = vol
+	if rest != "" && os.IsPathSeparator(rest[0]) {
+		p.root += string(filepath.Separator)
 	}
-	for i, c := range strings.Split(path, "/") {
+	for i, c := range strings.Split(filepath.ToSlash(rest), "/") {
 		switch {
 		case c == "":
-		case c == "." && !(i == 0 && len(comps) == 0):
+		case c == "." && !(i == 0 && p.root == ""):
 		default:
-			comps = append(comps, c)
+			p.comps = append(p.comps, c)
 		}
 	}
-	return comps
+	return p
 }
 
 func (p *pathBuf) String() string {
-	if len(p.comps) == 0 {
-		return ""
-	}
-	if p.comps[0] == "/" {
-		return "/" + strings.Join(p.comps[1:], "/")
-	}
-	return strings.Join(p.comps, "/")
+	return p.root + strings.Join(p.comps, string(filepath.Separator))
 }
 
-func (p *pathBuf) push(c string) {
-	if c == "/" {
-		p.comps = []string{"/"}
-		return
-	}
-	p.comps = append(p.comps, c)
-}
+func (p *pathBuf) push(c string) { p.comps = append(p.comps, c) }
 
 // pop truncates p to its parent, returning false if p has no parent.
 func (p *pathBuf) pop() bool {
 	n := len(p.comps)
-	if n == 0 || (n == 1 && p.comps[0] == "/") {
+	if n == 0 {
 		return false
 	}
 	p.comps = p.comps[:n-1]
@@ -127,15 +131,15 @@ func (p *pathBuf) pop() bool {
 // and lexically normalized. This is needed for files that don't exist yet,
 // like output files.
 func resolvePath(path string) pathBuf {
-	comps := components(path)
-	for i := len(comps); i >= 0; i-- {
-		prefix := pathBuf{comps: comps[:i]}
+	p := parsePath(path)
+	for i := len(p.comps); i >= 0; i-- {
+		prefix := pathBuf{root: p.root, comps: p.comps[:i]}
 		resolved, err := canonicalize(prefix.String())
 		if err != nil {
 			continue
 		}
-		r := pathBuf{comps: components(resolved)}
-		for _, c := range comps[i:] {
+		r := parsePath(resolved)
+		for _, c := range p.comps[i:] {
 			switch c {
 			case ".":
 			case "..":
@@ -146,7 +150,7 @@ func resolvePath(path string) pathBuf {
 		}
 		return r
 	}
-	return normalizePath(comps)
+	return normalizePath(p)
 }
 
 func canonicalize(path string) (string, error) {
@@ -161,9 +165,9 @@ func canonicalize(path string) (string, error) {
 }
 
 // normalizePath normalizes all intermediate components lexically.
-func normalizePath(comps []string) pathBuf {
-	var r pathBuf
-	for _, c := range comps {
+func normalizePath(p pathBuf) pathBuf {
+	r := pathBuf{root: p.root}
+	for _, c := range p.comps {
 		switch c {
 		case ".":
 		case "..":

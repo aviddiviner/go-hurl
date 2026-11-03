@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -22,7 +23,11 @@ func TestError(t *testing.T) {
 			t.Errorf("got %q, want %q", got, tt.want)
 		}
 	}
-	if got, want := OSErrorString(err), "No such file or directory (os error 2)"; got != want {
+	want := "No such file or directory (os error 2)"
+	if runtime.GOOS == "windows" {
+		want = "The system cannot find the file specified. (os error 2)"
+	}
+	if got := OSErrorString(err); got != want {
 		t.Errorf("got %q, want %q", got, want)
 	}
 }

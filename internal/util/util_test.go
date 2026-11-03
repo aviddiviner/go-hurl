@@ -98,12 +98,13 @@ func TestIsDescendantSymlink(t *testing.T) {
 }
 
 func TestResolvedPath(t *testing.T) {
+	sep := string(filepath.Separator)
 	tests := []struct{ root, file, want string }{
 		{"", "foo.out", "foo.out"},
-		{"/tmp", "filename", "/tmp/filename"},
+		{"/tmp", "filename", "/tmp" + sep + "filename"},
 		{"/tmp/", "filename", "/tmp/filename"},
 		{"a/b", "/abs/file", "/abs/file"},
-		{"a", "../b", "a/../b"},
+		{"a", "../b", "a" + sep + "../b"},
 	}
 	for _, tt := range tests {
 		if got := NewContextDir("", tt.root).ResolvedPath(tt.file); got != tt.want {

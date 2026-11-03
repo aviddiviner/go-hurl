@@ -288,14 +288,14 @@ func TestGlobAndDirectory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := []string{dir + "/.hurl", dir + "/a.hurl", dir + "/b.hurl"}; strings.Join(got, ",") != strings.Join(want, ",") {
+	if want := nativePaths(dir+"/.hurl", dir+"/a.hurl", dir+"/b.hurl"); strings.Join(got, ",") != strings.Join(want, ",") {
 		t.Errorf("glob: got %q", got)
 	}
 	got, err = glob(dir + "/**/*.hurl")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := []string{dir + "/.hurl", dir + "/a.hurl", dir + "/b.hurl", dir + "/sub/d.hurl", dir + "/sub/e.hurl"}; strings.Join(got, ",") != strings.Join(want, ",") {
+	if want := nativePaths(dir+"/.hurl", dir+"/a.hurl", dir+"/b.hurl", dir+"/sub/d.hurl", dir+"/sub/e.hurl"); strings.Join(got, ",") != strings.Join(want, ",") {
 		t.Errorf("glob **: got %q", got)
 	}
 	if _, err := glob(dir + "/a**"); err == nil {
@@ -307,9 +307,16 @@ func TestGlobAndDirectory(t *testing.T) {
 	for _, f := range opts.InputFiles {
 		files = append(files, f.String())
 	}
-	if want := []string{dir + "/a.hurl", dir + "/b.hurl", dir + "/sub/d.hurl", dir + "/sub/e.hurl"}; strings.Join(files, ",") != strings.Join(want, ",") {
+	if want := nativePaths(dir+"/a.hurl", dir+"/b.hurl", dir+"/sub/d.hurl", dir+"/sub/e.hurl"); strings.Join(files, ",") != strings.Join(want, ",") {
 		t.Errorf("directory: got %q", files)
 	}
+}
+
+func nativePaths(paths ...string) []string {
+	for i, p := range paths {
+		paths[i] = filepath.FromSlash(p)
+	}
+	return paths
 }
 
 func TestCreateRunSummary(t *testing.T) {

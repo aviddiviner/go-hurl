@@ -19,15 +19,19 @@ import (
 
 var hurlBin string
 
+// binName is how the binary names itself in usage messages (its file name,
+// like clap).
+var binName = "hurl"
+
 func TestMain(m *testing.M) {
 	dir, err := os.MkdirTemp("", "go-hurl-e2e")
 	if err != nil {
 		panic(err)
 	}
-	hurlBin = filepath.Join(dir, "hurl")
 	if runtime.GOOS == "windows" {
-		hurlBin += ".exe"
+		binName = "hurl.exe"
 	}
+	hurlBin = filepath.Join(dir, binName)
 	out, err := exec.Command("go", "build", "-o", hurlBin, ".").CombinedOutput()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "go build: %v\n%s", err, out)
@@ -249,7 +253,7 @@ func TestE2E(t *testing.T) {
 	})
 	t.Run("command line errors", func(t *testing.T) {
 		check(t, hurl(t, dir, "--toto", "hello.hurl"), exitErrorCommandline, "",
-			"error: unexpected argument '--toto' found\n\n  tip: a similar argument exists: '--to-entry'\n\nUsage: hurl --to-entry <ENTRY_NUMBER> [FILES]...\n\nFor more information, try '--help'.\n")
+			"error: unexpected argument '--toto' found\n\n  tip: a similar argument exists: '--to-entry'\n\nUsage: "+binName+" --to-entry <ENTRY_NUMBER> [FILES]...\n\nFor more information, try '--help'.\n")
 		check(t, hurl(t, dir, "nofile.hurl"), exitErrorCommandline, "",
 			"error: Cannot access 'nofile.hurl': No such file or directory\n")
 		check(t, hurl(t, dir, "-H", "foo", "hello.hurl"), exitErrorCommandline, "", "error: Invalid header <foo>, missing `:`\n")
@@ -259,7 +263,7 @@ func TestE2E(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		check(t, hurl(t, dir, "--help"), exitOK, string(want))
+		check(t, hurl(t, dir, "--help"), exitOK, strings.Replace(string(want), "Usage: hurl ", "Usage: "+binName+" ", 1))
 		r := hurl(t, dir, "--version")
 		check(t, r, exitOK, "*")
 		if !strings.HasPrefix(r.stdout, "hurl 8.1.0 (go-hurl 0.1.0) "+runtime.Version()+" "+runtime.GOOS+"/"+runtime.GOARCH+"\n") {
