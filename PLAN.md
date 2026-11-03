@@ -116,6 +116,7 @@ Dropped flags are still **accepted**, but fail with a clear "not supported by go
 - Request headers are sent (and printed) in Go's sorted order, not file order.
 - URL parsing follows `net/url` (RFC 3986), not WHATWG, so edge cases may normalise differently.
 - HTML trees come from an HTML5 parser (`x/net/html`, which inserts implied `<tbody>` etc.), not libxml2's HTML4-era parser. XPath on HTML can differ on markup that relies on those rules.
+- Response header names that `net/http` rejects (e.g. `<script>: x`) are accepted like curl does on plain-text HTTP/1.x only; over TLS the transfer fails.
 
 ## Package layout
 

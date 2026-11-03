@@ -1,28 +1,37 @@
 # Progress
 
-Status of the port, wave by wave. `git log` is the source of truth for what has landed.
+Status of the port. `git log` is the source of truth for what has landed.
 
-## Done
+## Status
 
-- `reader`: rune cursor (hurl_core/reader.rs)
-- `ast`: lossless AST, types, visitor (hurl_core/ast, types.rs). See `ast/doc.go` for the naming conventions.
-- `internal/text`: styled strings and ANSI output (hurl_core/text)
-- `internal/sourceerr`: annotated source error rendering (hurl_core/error)
-- `internal/input`: file and stdin input (hurl_core/input.rs)
-- `internal/jsonpath`: RFC 9535 JSONPath; the compliance suite gives 695 passed, 8 skipped, same as Rust
-- `internal/html`: HTML escape and unescape, entity table
-- `internal/pretty`: JSON pretty printer
-- `internal/xpath`: XPath over antchfx/xpath with our own DOM (encoding/xml and x/net/html)
+The whole port is written: `hurl` and `hurlfmt` build as static binaries (`CGO_ENABLED=0`) for linux, darwin and windows. `go vet ./...` and `go test ./...` pass.
+
+Upstream integration suite (`scripts/integration.py`, local run without squid): **399 passed, 8 failed, 24 skipped**. The 8 failures are proxy tests, which need squid on port 3128. The skips are listed with reasons in `scripts/integration_skip.txt`. The hurlfmt integration suite passes in full.
+
+| Package | Ported from |
+|---|---|
+| `reader`, `ast`, `parser` | hurl_core reader, ast, types, parser, combinator |
+| `internal/text`, `sourceerr`, `input` | hurl_core text, error, input |
+| `internal/format`, `lint`, `curlimport`, `cmd/hurlfmt` | hurl_core/format, hurlfmt |
+| `internal/jsonpath` | hurl/jsonpath (CTS: 695 passed, 8 skipped, same as Rust) |
+| `internal/xpath` | libxml2 XPath → antchfx/xpath + own DOM |
+| `internal/html`, `pretty` | hurl/html, hurl/pretty |
+| `internal/httpclient` | hurl/http, libcurl → net/http |
+| `internal/logger`, `term`, `util` | hurl/util, runner/output.rs |
+| `internal/runner`, `timefmt` | hurl/runner, hurl/json; chrono formatting |
+| `internal/regex` | Rust regex-syntax checks on top of Go `regexp` |
+| `internal/report/...` | hurl/report (curl, html, json, junit, tap) |
+| `internal/cli`, `output`, `parallel`, `cmd/hurl` | hurl/cli, output, parallel, main.rs, run.rs |
 
 ## Next
 
-- `parser` (hurl_core/parser + combinator.rs)
-- `internal/httpclient` (hurl/http) + logger
-- then the hurlfmt formatter, runner, CLI, output, reports, parallel runner
+- Run the proxy tests with squid (CI does this: `.github/workflows/ci.yml`).
+- Deferred features from `PLAN.md`: `--aws-sigv4`, `--digest`, shell completions.
+- A review pass over the larger packages (httpclient, runner, cli).
 
 ## Notes for later porters
 
-- `internal/pretty.Format` may write partial output when the JSON is invalid. The caller (the `runner/result.rs` port) must discard that output and write the raw bytes instead, as Rust does.
-- `internal/jsonpath` copies Hurl 8.1.0 bugs on purpose, for example negative fractional literals (`-1.5` evaluates as `-0.5`).
-- `internal/xpath`: numbers always map to a Hurl Float. Known HTML5 vs libxml2 tree differences are listed in the package doc.
-- `internal/sourceerr`: implement `Messager` to override the default error message, as `RunnerError` needs.
+- `internal/jsonpath` and `internal/runner` copy some Hurl 8.1.0 bugs on purpose, with comments (e.g. negative fractional literals in JSONPath, `-1.5` displayed as `-1.5.0`).
+- `internal/runner/diff*.go` reproduces the `similar` 3.2.1 crate (Myers + compaction). It is checked against 3000 cases generated with the real crate (`testdata/similar_diffs.*`). Large-input heuristics aren't ported.
+- `internal/httpclient` has a few curl-isms built on net/http: CN hostname fallback for certificates without SANs, lenient parsing of invalid response header names (plain HTTP only), no `Content-Length: 0` on empty POSTs, curl's cookie sort order.
+- `scripts/integration_normalize.py` makes the integration comparison ignore header order (a known difference).

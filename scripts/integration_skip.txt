@@ -1,0 +1,28 @@
+# Upstream integration scripts that go-hurl doesn't run, one per line, relative
+# to integration/hurl. Everything after `#` is the reason. Keep this list to
+# dropped features (see PLAN.md) and documented known differences.
+
+tests_ok/aws_sigv4/aws_sigv4_option.sh                    # deferred: --aws-sigv4
+tests_failed/aws_sigv4/aws_sigv4_option.sh                # deferred: --aws-sigv4
+tests_ok/digest/digest.sh                                 # deferred: --digest
+tests_ok/digest/digest_option.sh                          # deferred: --digest
+tests_ok/ntlm/ntlm.sh                                     # dropped: --ntlm
+tests_ok/ntlm/ntlm_option.sh                              # dropped: --ntlm
+tests_ok/http_version/http_version_10.sh                  # dropped: HTTP/1.0
+tests_ok/http_version/http_version_10_config_file.sh      # dropped: HTTP/1.0
+tests_ok/http_version/http_version_10_env_var.sh          # dropped: HTTP/1.0
+tests_ok/http_version/http_version_3_config_file.sh       # dropped: HTTP/3
+tests_ok/http_version/http_version_3_option.sh            # dropped: HTTP/3
+tests_ok/http_version/http_version_option.sh              # dropped: HTTP/1.0 and HTTP/3 options
+tests_ok/compressed/compressed.sh                         # dropped: brotli
+tests_ok/compressed/compressed_option.sh                  # dropped: brotli
+tests_ok/compressed/compressed_config_file.sh             # dropped: brotli (runs compressed.hurl)
+tests_ok/compressed/compressed_env_var.sh                 # dropped: brotli (runs compressed.hurl)
+tests_ok/parallel/parallel_all.sh                         # dropped: brotli (compressed_option.hurl); also needs the squid proxy (proxy_option.hurl)
+tests_ok/very_verbose/very_verbose.sh                     # dropped: libcurl's ** connection chatter (bundle/multiplex/"left intact" lines)
+tests_ok/very_verbose/very_verbose_config_file.sh         # dropped: libcurl's ** connection chatter
+tests_ok/version/version.sh                               # known difference: --version prints "Features (net/http)", not libcurl's feature line
+tests_ok/completion/completion_bash.sh                    # deferred: shell completions (sources completions/hurl.bash, not shipped)
+tests_ssl/client_authentication_password.sh               # dropped: encrypted client keys (--cert file:password)
+tests_ssl/error_client_authentication_password.sh         # dropped: encrypted client keys (fails with "Unsupported feature", not a TLS error)
+tests_failed/http_version_not_supported/http_version_not_supported.sh  # dropped: --http3 rejected at startup (exit 1), not at runtime (exit 3)

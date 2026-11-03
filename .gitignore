@@ -3,3 +3,6 @@
 .mypy_cache/
 .venv/
 build/
+__pycache__/
+# created by integration/hurl/tests_failed/fileroot/fileroot.sh at runtime
+integration/hurl/tests_failed/fileroot/authorized*
